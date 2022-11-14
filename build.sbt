@@ -16,4 +16,4 @@ libraryDependencies  ++= Seq(
   "org.scalanlp" %% "breeze-viz" % "2.1.0"
 )
 
-
+libraryDependencies += "com.github.darrenjw" %% "scala-glm" % "0.7"

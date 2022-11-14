@@ -1,37 +1,68 @@
 import breeze.linalg._
-import scalaglm.Lm
-//import scalaglm._
-import breeze.linalg._
-import breeze.numerics._
 import breeze.stats.distributions._
 import breeze.stats.distributions.Rand.VariableSeed.randBasis
+
 object Main {
   def main(args: Array[String]): Unit = {
     println("Hello world!")
+    //standard Gaussian distribution for the means of inputs
+    val mean_dist = Gaussian(0.0, 1.0)
 
-    val url = "http://archive.ics.uci.edu/ml/machine-learning-databases/00291/airfoil_self_noise.dat"
-    val fileName = "input/self-noise.csv"
+    //lognormal distribution for the variance of inputs
+    val var_dist = LogNormal(5.0, 3.0)
+    //The number of observations (cases/ instances):
+    val N = 100
+    val max_index_train = (N / 2) - 1
+    val start_index_test = max_index_train + 1
 
-    // download the file to disk if it hasn't been already
-    val file = new java.io.File(fileName)
-    if (!file.exists) {
-      val s = new java.io.PrintWriter(file)
-      val data = scala.io.Source.fromURL(url).getLines
-      data.foreach(l => s.write(l.trim.
-        split('\t').filter(_ != "").
-        mkString("", ",", "\n")))
-      s.close
+    //The number of features (inputs/ variables):
+    val p = 10
+    //empty data matrix, the last column is reserved for the output (y)
+    val X = DenseMatrix.zeros[Double](N, p + 1)
+    //The first half of the observations is stored as training set.
+    val X_train = DenseMatrix.zeros[Double]((N / 2), p + 1)
+    //The second half of the observations is stored as test set.
+    val X_test = DenseMatrix.zeros[Double]((N / 2), p + 1)
+    //create all inputs (predictors)
+    for (i <- 0 to (p - 1)) {
+      val mean = mean_dist.draw()
+      val sd = var_dist.draw()
+      val dist = Gaussian(mean, sd)
+      val x = dist.sample(N)
+      //matrix assignment to column
+      X(::, i) := DenseVector(x.toArray)
+      X_train(::, i) := DenseVector(x.toArray)(0 to max_index_train)
+      X_test(::, i) := DenseVector(x.toArray)(start_index_test to (N - 1))
+      //calculate y based on inputs and random coefficients
+      val coefs = mean_dist.sample(p + 1)
+      val c = DenseVector(coefs.toArray)
+//      add dummy value 0 for y column
+      c(p) = 0.0
+      val y = X * c
+      val y_train = y(0 to max_index_train)
+      val y_test = y(start_index_test to (N - 1))
+//      estimate the coefficients using least squares:
+      val b = pinv(X.t * X) * X.t * y
+
+      println("True coefficients:")
+      println(c)
+      println("Estimated coefficients:")
+      println(b)
+      println("True coefficients are so closed with predicted coefficients !")
+      //create a vector of random numbers (uniform random numbers between 0 and 1)
+      val noise = DenseVector(mean_dist.sample(N).toArray)
+      //add the noise vector with mean zero and variance 1
+      val y_ = X * c + noise
+      val y_train_ = y_(0 to max_index_train)
+      val y_test_ = y_(start_index_test to (N - 1))
+      //estimate the coefficients using least squares:
+      val b_ = pinv(X.t * X) * X.t * y
+
+      println("True coefficients:")
+      println(c)
+      println("Estimated coefficients:")
+      println(b_)
+      println("True coefficients are so closed with predicted coefficients in noises as well !")
     }
-    val mat = csvread(new java.io.File(fileName))
-//    println("Dim: " + mat.rows + " " + mat.cols)
-//    val figp = Utils.pairs(mat, List("Freq", "Angle", "Chord", "Velo", "Thick", "Sound"))
-//    val y = mat(::, 5) // response is the final column
-//    val X = mat(::, 0 to 4)
-    val X = DenseMatrix.tabulate(100, 3)((i, j) =>
-      Gaussian(j, j + 1).sample())
-    val y = DenseVector.tabulate(100)(i =>
-      Gaussian(2.0 + 1.5 * X(i, 0) + 0.5 * X(i, 1), 3.0).sample())
-//    val mod = Lm(y, X, List("Freq", "Angle", "Chord", "Velo", "Thick"))
-    val lm = Lm(y, X, List("V1", "V2", "V3"))
   }
 }
